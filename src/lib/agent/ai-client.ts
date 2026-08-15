@@ -1,10 +1,5 @@
-/**
- * AI Client abstraction layer.
- *
- * Wraps an OpenAI-compatible SDK so the rest of the codebase never
- * references a vendor-specific package directly. Swap the underlying
- * provider by changing this single file.
- */
+import OpenAI from "openai";
+import google from "googlethis";
 
 // ---------------------------------------------------------------------------
 // Types – mirroring the subset of the OpenAI chat-completions interface
@@ -40,7 +35,6 @@ export interface AIClient {
 
 // ---------------------------------------------------------------------------
 // Factory – initialises and returns the AI client singleton.
-// Replace the import below with any OpenAI-compatible SDK.
 // ---------------------------------------------------------------------------
 
 let _client: AIClient | null = null;
@@ -48,15 +42,62 @@ let _client: AIClient | null = null;
 /**
  * Create (or return the cached) AI client instance.
  *
- * The concrete SDK is imported only here, so the rest of the codebase
- * stays provider-agnostic.  To switch providers, change only this function.
+ * Uses the official OpenAI SDK for LLM completions and `googlethis` 
+ * for free, keyless web search.
  */
 export async function createAIClient(): Promise<AIClient> {
   if (_client) return _client;
 
-  // Dynamic import so the concrete SDK name only appears here.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const SDK = (await import("z-ai-web-dev-sdk")).default;
-  _client = await SDK.create();
-  return _client as AIClient;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing GEMINI_API_KEY in environment variables. Please add it to your .env file.");
+  }
+
+  // Point the OpenAI client to Google's free Gemini servers
+  const openai = new OpenAI({ 
+    apiKey,
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  });
+
+  _client = {
+    chat: {
+      completions: {
+        create: async (params) => {
+          // Use Google's free and fast flash model
+          const response = await openai.chat.completions.create({
+            model: "gemini-1.5-flash",
+            messages: params.messages as any,
+          });
+          return response as unknown as ChatCompletionResult;
+        },
+      },
+    },
+    functions: {
+      invoke: async (name, args) => {
+        if (name === "web_search") {
+          const query = args.query as string;
+          
+          // Use googlethis for free keyless Google scraping
+          const options = {
+            page: 0,
+            safe: false,
+            parse_ads: false,
+            additional_params: { hl: "en" },
+          };
+          
+          const response = await google.search(query, options);
+          
+          // Map to the format expected by the recruiter agent
+          return response.results.slice(0, 8).map((r) => ({
+            title: r.title,
+            link: r.url,
+            snippet: r.description,
+          }));
+        }
+        throw new Error(`Function ${name} not implemented.`);
+      },
+    },
+  };
+
+  return _client;
 }

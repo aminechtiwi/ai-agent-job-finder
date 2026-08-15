@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A single execution of the AI Recruiter Agent over one CV.
+model AgentRun {
+  id            String   @id @default(cuid())
+  /// Candidate name extracted by Phase 1 (best-effort).
+  candidateName String?
+  /// Raw CV text submitted by the user.
+  cvText        String
+  /// Structured profile extracted in Phase 1 (skills, seniority, domain, years).
+  profile       String?
+  /// Array of search queries executed in Phase 2 (JSON string).
+  searchQueries String?
+  /// Raw search results gathered in Phase 2 (JSON string).
+  searchResults String?
+  /// Final markdown report produced in Phase 3.
+  report        String?
+  /// Execution status: running | completed | failed.
+  status        String   @default("running")
+  /// Error message, if status = failed.
+  error         String?
+  /// Wall-clock duration of the run in milliseconds.
+  durationMs    Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status])
+}

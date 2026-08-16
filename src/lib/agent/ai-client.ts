@@ -67,9 +67,10 @@ export async function createAIClient(): Promise<AIClient> {
           const userMessage =
             params.messages.find((m) => m.role === "user")?.content || "";
 
-          // Initialise the model (using latest flash to avoid 404s)
+          // Initialise the model using the older, globally available gemini-pro 
+          // because Google restricts the 1.5 models in some regions/accounts (causing a 404)
           const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash-latest",
+            model: "gemini-pro",
           });
 
           // Prepend system instruction to user message to ensure it works on all API versions

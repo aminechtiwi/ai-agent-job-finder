@@ -68,6 +68,7 @@ export async function createAIClient(): Promise<AIClient> {
             model: "llama-3.3-70b-versatile", // Groq's most capable free model
             messages: params.messages as any,
             temperature: 0.1, // Low temperature for accurate JSON extraction
+            response_format: { type: "json_object" }, // FORCE strict JSON
           });
           return response as unknown as ChatCompletionResult;
         },

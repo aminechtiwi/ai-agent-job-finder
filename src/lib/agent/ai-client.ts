@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import google from "googlethis";
 
 // ---------------------------------------------------------------------------
@@ -42,46 +42,34 @@ let _client: AIClient | null = null;
 /**
  * Create (or return the cached) AI client instance.
  *
- * Uses the official Google Generative AI SDK for LLM completions
- * and `googlethis` for free, keyless web search.
+ * Uses Groq (Llama 3) for blazing fast, 100% free AI with zero regional 404 bugs.
  */
 export async function createAIClient(): Promise<AIClient> {
   if (_client) return _client;
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "Missing GEMINI_API_KEY in environment variables. Please add it to your .env file."
+      "Missing GROQ_API_KEY in environment variables. Please add it to your Vercel project."
     );
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
+  // Use the standard OpenAI SDK but point it to Groq's superfast servers
+  const openai = new OpenAI({ 
+    apiKey,
+    baseURL: "https://api.groq.com/openai/v1"
+  });
 
   _client = {
     chat: {
       completions: {
         create: async (params) => {
-          // Extract system instruction and user prompt to map to Gemini format
-          const systemInstruction =
-            params.messages.find((m) => m.role === "system")?.content || "";
-          const userMessage =
-            params.messages.find((m) => m.role === "user")?.content || "";
-
-          // Initialise the model using the older, globally available gemini-pro 
-          // because Google restricts the 1.5 models in some regions/accounts (causing a 404)
-          const model = genAI.getGenerativeModel({
-            model: "gemini-pro",
+          const response = await openai.chat.completions.create({
+            model: "llama-3.3-70b-versatile", // Groq's most capable free model
+            messages: params.messages as any,
+            temperature: 0.1, // Low temperature for accurate JSON extraction
           });
-
-          // Prepend system instruction to user message to ensure it works on all API versions
-          const combinedPrompt = `${systemInstruction}\n\n${userMessage}`;
-
-          const result = await model.generateContent(combinedPrompt);
-          const text = result.response.text();
-
-          return {
-            choices: [{ message: { content: text } }],
-          };
+          return response as unknown as ChatCompletionResult;
         },
       },
     },
@@ -89,18 +77,13 @@ export async function createAIClient(): Promise<AIClient> {
       invoke: async (name, args) => {
         if (name === "web_search") {
           const query = args.query as string;
-
-          // Use googlethis for free keyless Google scraping
           const options = {
             page: 0,
             safe: false,
             parse_ads: false,
             additional_params: { hl: "en" },
           };
-
           const response = await google.search(query, options);
-
-          // Map to the format expected by the recruiter agent
           return response.results.slice(0, 8).map((r) => ({
             title: r.title,
             link: r.url,

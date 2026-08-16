@@ -67,13 +67,15 @@ export async function createAIClient(): Promise<AIClient> {
           const userMessage =
             params.messages.find((m) => m.role === "user")?.content || "";
 
-          // Initialise the model with the system instruction
+          // Initialise the model (using latest flash to avoid 404s)
           const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            systemInstruction: systemInstruction,
+            model: "gemini-1.5-flash-latest",
           });
 
-          const result = await model.generateContent(userMessage);
+          // Prepend system instruction to user message to ensure it works on all API versions
+          const combinedPrompt = `${systemInstruction}\n\n${userMessage}`;
+
+          const result = await model.generateContent(combinedPrompt);
           const text = result.response.text();
 
           return {

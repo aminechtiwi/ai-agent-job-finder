@@ -52,54 +52,39 @@ You will receive:
 2. Live market research data (from Phase 2): search queries + their results (titles, snippets, URLs).
 
 Your job:
-- Compare the candidate's EXACT experience against the responsibilities and requirements found in current live job postings / market data.
-- Select the TOP 3 job matches that are highly compatible. Filter OUT any role requiring qualifications the candidate completely lacks.
-- Do NOT suggest roles requiring 10+ years if the CV indicates a junior background (STRICT ALIGNMENT).
-- Do NOT fabricate real-world open job links. Only reference the URLs that actually appear in the provided search data. For each match, build a valid LinkedIn job-search URL from the title (e.g. https://www.linkedin.com/jobs/search/?keywords=<encoded-title>) — this is a search URL, not a fabricated specific posting.
-- For "Current Market Demand" use High / Medium / Growing based on volume and recency of search findings.
+- Compare the candidate's EXACT experience against the responsibilities found in the current live job postings / market data.
+- Select the TOP 3-5 real job matches from the search results.
+- Do NOT fabricate links. ONLY use actual URLs from the provided search data. If no good direct job links are found, you may use a company URL from the search data.
+- Ensure strict seniority alignment. Do not suggest senior roles for juniors.
 
-OUTPUT FORMAT — produce EXACTLY this Markdown layout and nothing else:
+OUTPUT FORMAT — You MUST produce valid JSON matching this schema exactly, and nothing else (no markdown blocks, no text outside JSON):
 
-# 📊 AI Career Match & Market Analysis Report
-
-### 👤 Candidate Profile Summary
-* **Primary Domain:** [Insert Domain]
-* **Assessed Seniority Level:** [Insert Seniority]
-* **Top 5 Core Competencies:** [Skill 1, Skill 2, Skill 3, Skill 4, Skill 5]
-
----
-
-### 💼 Top 3 Equivalent Job Matches
-*(Discovered via Google & LinkedIn live market data)*
-
-#### 1. [Job Title] - [Company Name or Industry Standard Role]
-* **Why It Matches:** [1-2 sentences explaining why the CV fits this exact role]
-* **Skills to Highlight:** [Skills from the CV that make the candidate stand out]
-* **Current Market Demand:** [High / Medium / Growing based on search findings]
-* **Sample LinkedIn Search URL:** [Insert direct URL to search for this job on LinkedIn]
-
-#### 2. [Job Title] - [Company Name or Industry Standard Role]
-* **Why It Matches:** ...
-* **Skills to Highlight:** ...
-* **Current Market Demand:** ...
-* **Sample LinkedIn Search URL:** ...
-
-#### 3. [Job Title] - [Company Name or Industry Standard Role]
-* **Why It Matches:** ...
-* **Skills to Highlight:** ...
-* **Current Market Demand:** ...
-* **Sample LinkedIn Search URL:** ...
-
----
-
-### 💡 Strategic Resume Recommendations
-* **Keywords to Add:** [List 3-4 keywords found in job listings that are missing from the CV]
-* **Upskilling Suggestion:** [Name 1 certification or skill that would make this profile irresistible]
+{
+  "summary": {
+    "domain": "Primary Domain",
+    "seniority": "Seniority Level",
+    "coreCompetencies": ["Skill 1", "Skill 2", "Skill 3"]
+  },
+  "matches": [
+    {
+      "title": "Job Title from Search Results",
+      "company": "Company Name from Search Results",
+      "location": "Location (if known, else 'Remote/Flexible')",
+      "whyItMatches": "1-2 sentences explaining why the CV fits this role based on the search snippet",
+      "skillsToHighlight": ["Skill A", "Skill B"],
+      "url": "https://..." // MUST be a real URL from the Phase 2 search data
+    }
+  ],
+  "recommendations": {
+    "keywordsToAdd": ["Keyword 1", "Keyword 2"],
+    "upskilling": "One specific certification or skill to add"
+  }
+}
 
 RULES:
-- Output ONLY the markdown report. No preface, no trailing commentary.
-- Use real data from the search context where possible. If a match has no concrete company, use the industry-standard role title.
-- Keep "Why It Matches" grounded in the candidate's actual skills/years.`;
+- Output ONLY valid JSON.
+- Never invent URLs. Only use URLs present in the LIVE MARKET RESEARCH section.
+- If a match is missing a company name, infer it from the URL or title.`;
 
 export const PHASE3_USER_PROMPT = (
   profileJson: string,

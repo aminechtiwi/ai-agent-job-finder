@@ -359,7 +359,7 @@ export async function* runRecruiterAgent(
 
     // Strip a leading markdown fence if the model wrapped the whole report.
     if (report.startsWith("```")) {
-      report = report.replace(/^```(?:markdown)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      report = report.replace(/^```(?:json|markdown)?\s*/i, "").replace(/```\s*$/i, "").trim();
     }
 
     yield { type: "report", report };

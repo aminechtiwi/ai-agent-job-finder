@@ -34,60 +34,104 @@ export interface AIClient {
 
 let _client: AIClient | null = null;
 
+function sanitizeKey(val?: string | null): string {
+  if (!val) return "";
+  return val.trim().replace(/^["']|["']$/g, "");
+}
+
+interface ProviderConfig {
+  name: string;
+  client: OpenAI;
+  model: string;
+  fallbackModel?: string;
+}
+
 /**
- * Universal Multi-Provider AI Client:
- * Automatically supports whichever key is provided in environment variables:
- * - GROQ_API_KEY (Groq - Llama 3.3 70B & Llama 3.1 8B)
- * - OPENROUTER_API_KEY (OpenRouter - Free DeepSeek, Gemini, Llama)
- * - GEMINI_API_KEY (Google Gemini)
- * - OPENAI_API_KEY (OpenAI - GPT-4o-mini)
+ * Auto-detecting, Self-Healing Multi-Provider AI Client:
+ * Scans all environment variables, inspects key prefixes (gsk_, AIza, sk-or-, sk-),
+ * and automatically routes to the correct provider with automatic failover.
  */
 export async function createAIClient(): Promise<AIClient> {
   if (_client) return _client;
 
-  const groqKey = process.env.GROQ_API_KEY;
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
+  // Gather and sanitize all possible keys
+  const groqKey = sanitizeKey(process.env.GROQ_API_KEY);
+  const openRouterKey = sanitizeKey(process.env.OPENROUTER_API_KEY);
+  const geminiKey = sanitizeKey(process.env.GEMINI_API_KEY);
+  const openaiKey = sanitizeKey(process.env.OPENAI_API_KEY);
 
-  let openai: OpenAI;
-  let defaultModel: string;
-  let fallbackModel: string | null = null;
+  // Collect all non-empty candidate keys from env
+  const allEnvKeys = [
+    groqKey,
+    openRouterKey,
+    geminiKey,
+    openaiKey,
+    sanitizeKey(process.env.AI_API_KEY),
+  ].filter(Boolean);
 
-  if (groqKey) {
-    openai = new OpenAI({
-      apiKey: groqKey,
-      baseURL: "https://api.groq.com/openai/v1",
+  const providers: ProviderConfig[] = [];
+
+  // 1. Check for Groq keys (starts with gsk_ or passed in GROQ_API_KEY)
+  const actualGroqKey = allEnvKeys.find((k) => k.startsWith("gsk_")) || (groqKey && !groqKey.startsWith("AIza") && !groqKey.startsWith("sk-") ? groqKey : "");
+  if (actualGroqKey) {
+    providers.push({
+      name: "Groq",
+      client: new OpenAI({
+        apiKey: actualGroqKey,
+        baseURL: "https://api.groq.com/openai/v1",
+      }),
+      model: "llama-3.3-70b-versatile",
+      fallbackModel: "llama-3.1-8b-instant",
     });
-    defaultModel = "llama-3.3-70b-versatile";
-    fallbackModel = "llama-3.1-8b-instant"; // Higher rate limit fallback
-  } else if (openRouterKey) {
-    openai = new OpenAI({
-      apiKey: openRouterKey,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: {
-        "HTTP-Referer": "https://ai-agent-job-finder.vercel.app",
-        "X-Title": "AI Job Matcher",
-      },
+  }
+
+  // 2. Check for OpenRouter keys (starts with sk-or- or passed in OPENROUTER_API_KEY)
+  const actualOpenRouterKey = allEnvKeys.find((k) => k.startsWith("sk-or-")) || openRouterKey;
+  if (actualOpenRouterKey) {
+    providers.push({
+      name: "OpenRouter",
+      client: new OpenAI({
+        apiKey: actualOpenRouterKey,
+        baseURL: "https://openrouter.ai/api/v1",
+        defaultHeaders: {
+          "HTTP-Referer": "https://ai-agent-job-finder.vercel.app",
+          "X-Title": "AI Job Matcher",
+        },
+      }),
+      model: "meta-llama/llama-3.3-70b-instruct:free",
+      fallbackModel: "google/gemini-2.0-flash-exp:free",
     });
-    defaultModel = "meta-llama/llama-3.3-70b-instruct:free";
-    fallbackModel = "google/gemini-2.0-flash-exp:free";
-  } else if (geminiKey) {
-    openai = new OpenAI({
-      apiKey: geminiKey,
-      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  }
+
+  // 3. Check for OpenAI keys (starts with sk- and not sk-or-)
+  const actualOpenAIKey = allEnvKeys.find((k) => k.startsWith("sk-") && !k.startsWith("sk-or-")) || openaiKey;
+  if (actualOpenAIKey) {
+    providers.push({
+      name: "OpenAI",
+      client: new OpenAI({
+        apiKey: actualOpenAIKey,
+      }),
+      model: "gpt-4o-mini",
     });
-    defaultModel = "gemini-1.5-flash";
-    fallbackModel = "gemini-2.0-flash";
-  } else if (openaiKey) {
-    openai = new OpenAI({
-      apiKey: openaiKey,
+  }
+
+  // 4. Check for Google Gemini keys (starts with AIza or passed in GEMINI_API_KEY)
+  const actualGeminiKey = allEnvKeys.find((k) => k.startsWith("AIza")) || geminiKey;
+  if (actualGeminiKey) {
+    providers.push({
+      name: "Gemini",
+      client: new OpenAI({
+        apiKey: actualGeminiKey,
+        baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+      }),
+      model: "gemini-1.5-flash",
+      fallbackModel: "gemini-2.0-flash",
     });
-    defaultModel = "gpt-4o-mini";
-    fallbackModel = null;
-  } else {
+  }
+
+  if (providers.length === 0) {
     throw new Error(
-      "No AI API key found. Please add GROQ_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY to your environment variables."
+      "No valid AI API Key found. Please add a GROQ_API_KEY (starts with gsk_), OPENROUTER_API_KEY, or OPENAI_API_KEY in your Vercel Environment Variables."
     );
   }
 
@@ -95,34 +139,48 @@ export async function createAIClient(): Promise<AIClient> {
     chat: {
       completions: {
         create: async (params) => {
-          // Normalize messages: Ensure system message has role: 'system'
           const messages = params.messages.map((m) => ({
             role: m.role as "system" | "user" | "assistant",
             content: m.content,
           }));
 
-          try {
-            const response = await openai.chat.completions.create({
-              model: defaultModel,
-              messages: messages as any,
-              temperature: 0.2,
-            });
-            return response as unknown as ChatCompletionResult;
-          } catch (err: any) {
-            // If primary model hits rate limit or error, try fallback model if available
-            if (fallbackModel) {
-              console.warn(
-                `Primary model ${defaultModel} failed (${err?.message}). Trying fallback ${fallbackModel}...`
-              );
-              const fallbackResponse = await openai.chat.completions.create({
-                model: fallbackModel,
+          let lastError: any = null;
+
+          // Try available providers in order with automatic fallback
+          for (const prov of providers) {
+            try {
+              const response = await prov.client.chat.completions.create({
+                model: prov.model,
                 messages: messages as any,
                 temperature: 0.2,
               });
-              return fallbackResponse as unknown as ChatCompletionResult;
+              return response as unknown as ChatCompletionResult;
+            } catch (err: any) {
+              console.warn(`Provider ${prov.name} with model ${prov.model} failed:`, err?.message);
+              lastError = err;
+
+              // Try provider's fallback model if available
+              if (prov.fallbackModel) {
+                try {
+                  const fallbackResp = await prov.client.chat.completions.create({
+                    model: prov.fallbackModel,
+                    messages: messages as any,
+                    temperature: 0.2,
+                  });
+                  return fallbackResp as unknown as ChatCompletionResult;
+                } catch (fallbackErr: any) {
+                  console.warn(`Provider ${prov.name} fallback ${prov.fallbackModel} failed:`, fallbackErr?.message);
+                  lastError = fallbackErr;
+                }
+              }
             }
-            throw err;
           }
+
+          // If all providers failed, throw helpful error with provider name
+          const errDetail = lastError?.message || "Unknown error";
+          throw new Error(
+            `AI completion failed on ${providers.map((p) => p.name).join(", ")}. Error: ${errDetail}. Please verify your API key in Vercel Settings -> Environment Variables.`
+          );
         },
       },
     },
@@ -131,7 +189,6 @@ export async function createAIClient(): Promise<AIClient> {
         if (name === "web_search") {
           const query = String(args.query || "");
           const cleanQuery = query.replace(/site:[^\s]+/gi, "").trim();
-
           const searchResults: Array<{ title: string; link: string; snippet: string }> = [];
 
           try {
@@ -148,38 +205,37 @@ export async function createAIClient(): Promise<AIClient> {
                   searchResults.push({
                     title: r.title || cleanQuery,
                     link: r.url,
-                    snippet: r.description || "Job posting on " + (r.url.split("/")[2] || "web"),
+                    snippet: r.description || "Job opening on " + (r.url.split("/")[2] || "web"),
                   });
                 }
               }
             }
           } catch (searchErr) {
-            console.warn("Live web scraping error, falling back to direct job search links:", searchErr);
+            console.warn("Live web scraping error, generating targeted direct job links:", searchErr);
           }
 
-          // If web search returned fewer than 3 links, populate guaranteed real job search URLs
           if (searchResults.length < 3) {
             const enc = encodeURIComponent(cleanQuery || "Software Engineer");
             searchResults.push(
               {
                 title: `${cleanQuery} Jobs on LinkedIn`,
-                link: `https://www.linkedin.com/jobs/search/?keywords=${enc}`,
-                snippet: `Live job listings for ${cleanQuery} on LinkedIn with active applications.`,
+                link: `https://www.linkedin.com/jobs/search/?keywords=${enc}&f_TPR=r2592000`,
+                snippet: `Live active job openings for ${cleanQuery} on LinkedIn.`,
               },
               {
-                title: `${cleanQuery} Openings on Indeed`,
+                title: `${cleanQuery} Careers on Indeed`,
                 link: `https://www.indeed.com/jobs?q=${enc}`,
-                snippet: `Search and apply to verified ${cleanQuery} jobs on Indeed.`,
+                snippet: `Search and apply directly to verified ${cleanQuery} jobs on Indeed.`,
               },
               {
-                title: `${cleanQuery} Careers on Glassdoor`,
+                title: `${cleanQuery} on Google Jobs`,
+                link: `https://www.google.com/search?q=${enc}+jobs&ibp=htl;jobs`,
+                snippet: `Aggregated Google for Jobs search for ${cleanQuery}.`,
+              },
+              {
+                title: `${cleanQuery} on Glassdoor`,
                 link: `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${enc}`,
-                snippet: `Salaries, reviews, and job openings for ${cleanQuery} on Glassdoor.`,
-              },
-              {
-                title: `${cleanQuery} Opportunities on Bayt`,
-                link: `https://www.bayt.com/en/international/jobs/?q=${enc}`,
-                snippet: `Top regional and international job openings for ${cleanQuery} on Bayt.com.`,
+                snippet: `Open positions and hiring companies for ${cleanQuery} on Glassdoor.`,
               }
             );
           }

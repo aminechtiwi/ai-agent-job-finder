@@ -20,31 +20,35 @@ import type {
  */
 function extractJson(raw: string): unknown | null {
   if (!raw) return null;
-  const trimmed = raw.trim();
+  let trimmed = raw.trim();
 
-  // Fast path: already valid JSON.
+  // Strip leading/trailing markdown code blocks if any
+  trimmed = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  // 1. Try direct parse
   try {
     return JSON.parse(trimmed);
   } catch {
     // continue
   }
 
-  // Strip markdown code fences if present.
-  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenceMatch) {
-    try {
-      return JSON.parse(fenceMatch[1].trim());
-    } catch {
-      // continue
-    }
-  }
-
-  // Fallback: grab the first {...} block.
+  // 2. Extract between first '{' and last '}'
   const first = trimmed.indexOf("{");
   const last = trimmed.lastIndexOf("}");
   if (first !== -1 && last !== -1 && last > first) {
     try {
       return JSON.parse(trimmed.slice(first, last + 1));
+    } catch {
+      // continue
+    }
+  }
+
+  // 3. Extract between first '[' and last ']' if array
+  const firstArr = trimmed.indexOf("[");
+  const lastArr = trimmed.lastIndexOf("]");
+  if (firstArr !== -1 && lastArr !== -1 && lastArr > firstArr) {
+    try {
+      return JSON.parse(trimmed.slice(firstArr, lastArr + 1));
     } catch {
       // continue
     }
@@ -116,31 +120,15 @@ function buildSearchQueries(profile: CandidateProfile): string[] {
   const titles = profile.titleVariations.slice(0, 3);
   const domain = profile.primaryDomain;
   const kw = profile.industryKeywords.slice(0, 2);
-  const seniority = profile.seniorityLevel;
+  const primaryTitle = titles[0] || "Software Engineer";
+  const skills = profile.hardSkills.slice(0, 3).join(" ");
 
-  const queries: string[] = [];
+  const queries: string[] = [
+    `${primaryTitle} jobs LinkedIn Indeed`,
+    `${primaryTitle} ${skills} job openings`,
+    `${titles[1] || primaryTitle} ${domain} careers`,
+  ];
 
-  // LinkedIn-targeted queries per title variation.
-  for (const title of titles) {
-    queries.push(
-      `site:linkedin.com/jobs "${title}" ${kw.map((k) => `"${k}"`).join(" ")}`.trim(),
-    );
-  }
-
-  // A broad Google query for hiring trends / market demand.
-  queries.push(
-    `${seniority} ${titles[0] ?? ""} ${domain} job openings hiring trends ${kw[0] ?? ""}`.trim(),
-  );
-
-  // A skills-focused query to surface required tech stacks.
-  const topSkills = profile.hardSkills.slice(0, 3).join(" ");
-  if (topSkills) {
-    queries.push(
-      `${titles[0] ?? seniority} required skills ${topSkills} ${domain}`.trim(),
-    );
-  }
-
-  // De-duplicate while preserving order.
   return [...new Set(queries.filter(Boolean))];
 }
 
@@ -206,7 +194,7 @@ export async function* runRecruiterAgent(
   try {
     const completion = await ai.chat.completions.create({
       messages: [
-        { role: "assistant", content: PHASE1_SYSTEM_PROMPT },
+        { role: "system", content: PHASE1_SYSTEM_PROMPT },
         { role: "user", content: PHASE1_USER_PROMPT(cvText) },
       ],
       thinking: { type: "disabled" },
@@ -340,7 +328,7 @@ export async function* runRecruiterAgent(
     const searchContext = buildSearchContext(hits);
     const completion = await ai.chat.completions.create({
       messages: [
-        { role: "assistant", content: PHASE3_SYSTEM_PROMPT },
+        { role: "system", content: PHASE3_SYSTEM_PROMPT },
         {
           role: "user",
           content: PHASE3_USER_PROMPT(

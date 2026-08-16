@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import google from "googlethis";
 
 // ---------------------------------------------------------------------------
@@ -42,33 +42,43 @@ let _client: AIClient | null = null;
 /**
  * Create (or return the cached) AI client instance.
  *
- * Uses the official OpenAI SDK for LLM completions and `googlethis` 
- * for free, keyless web search.
+ * Uses the official Google Generative AI SDK for LLM completions
+ * and `googlethis` for free, keyless web search.
  */
 export async function createAIClient(): Promise<AIClient> {
   if (_client) return _client;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("Missing GEMINI_API_KEY in environment variables. Please add it to your .env file.");
+    throw new Error(
+      "Missing GEMINI_API_KEY in environment variables. Please add it to your .env file."
+    );
   }
 
-  // Point the OpenAI client to Google's free Gemini servers
-  const openai = new OpenAI({ 
-    apiKey,
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
-  });
+  const genAI = new GoogleGenerativeAI(apiKey);
 
   _client = {
     chat: {
       completions: {
         create: async (params) => {
-          // Use Google's free and fast flash model
-          const response = await openai.chat.completions.create({
+          // Extract system instruction and user prompt to map to Gemini format
+          const systemInstruction =
+            params.messages.find((m) => m.role === "system")?.content || "";
+          const userMessage =
+            params.messages.find((m) => m.role === "user")?.content || "";
+
+          // Initialise the model with the system instruction
+          const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
-            messages: params.messages as any,
+            systemInstruction: systemInstruction,
           });
-          return response as unknown as ChatCompletionResult;
+
+          const result = await model.generateContent(userMessage);
+          const text = result.response.text();
+
+          return {
+            choices: [{ message: { content: text } }],
+          };
         },
       },
     },
@@ -76,7 +86,7 @@ export async function createAIClient(): Promise<AIClient> {
       invoke: async (name, args) => {
         if (name === "web_search") {
           const query = args.query as string;
-          
+
           // Use googlethis for free keyless Google scraping
           const options = {
             page: 0,
@@ -84,9 +94,9 @@ export async function createAIClient(): Promise<AIClient> {
             parse_ads: false,
             additional_params: { hl: "en" },
           };
-          
+
           const response = await google.search(query, options);
-          
+
           // Map to the format expected by the recruiter agent
           return response.results.slice(0, 8).map((r) => ({
             title: r.title,

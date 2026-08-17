@@ -39,14 +39,50 @@ function cleanKey(val?: string | null): string {
 }
 
 /**
- * Direct HTTP caller for Groq.
- * Uses llama-3.3-70b-versatile as primary production model with llama-3.1-8b-instant fallback.
+ * Direct HTTP caller for Groq with Real-Time Model Discovery.
+ * Queries Groq's active models API for this key and iterates through available models.
  */
 async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<string> {
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  let liveModels: string[] = [];
+
+  try {
+    const modelsRes = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (modelsRes.ok) {
+      const modelsData = await modelsRes.json();
+      if (Array.isArray(modelsData?.data)) {
+        liveModels = modelsData.data
+          .map((m: any) => String(m.id))
+          .filter(
+            (id: string) =>
+              !id.includes("whisper") &&
+              !id.includes("guard") &&
+              !id.includes("vision") &&
+              !id.includes("embedding")
+          );
+      }
+    }
+  } catch (err) {
+    console.warn("Could not query Groq models catalog:", err);
+  }
+
+  // Combine discovered models with known common models
+  const candidateModels = Array.from(
+    new Set([
+      ...liveModels,
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+      "llama3-70b-8192",
+      "llama3-8b-8192",
+      "deepseek-r1-distill-llama-70b",
+      "qwen-2.5-32b",
+    ])
+  );
+
   const errors: string[] = [];
 
-  for (const model of models) {
+  for (const model of candidateModels) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -72,7 +108,8 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
     }
   }
 
-  throw new Error(`Groq error: ${errors.join(" | ")}`);
+  const modelInfo = liveModels.length > 0 ? `Available on your key: [${liveModels.join(", ")}]` : "No models found on key";
+  throw new Error(`Groq failed. ${modelInfo}. Last error: ${errors[0] || "Unknown error"}`);
 }
 
 /**

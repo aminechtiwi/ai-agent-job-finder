@@ -9,6 +9,9 @@ export interface CandidateProfile {
   primaryDomain: string;
   seniorityLevel: string;
   yearsOfExperience: number | null;
+  location: string | null;
+  targetLocations: string[];
+  targetCompanies?: string[];
   hardSkills: string[];
   softSkills: string[];
   /** Top 5 competencies distilled from hard + soft skills + domain. */

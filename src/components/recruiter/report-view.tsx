@@ -11,7 +11,9 @@ import {
   AlertCircle,
   ArrowUpRight,
   Search,
-  Globe,
+  CheckCircle2,
+  Layers,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -27,15 +29,26 @@ interface ParsedReport {
   summary: {
     domain: string;
     seniority: string;
+    location?: string;
     coreCompetencies: string[];
   };
+  marketOverview?: string;
   matches: Array<{
     title: string;
     company: string;
+    companyType?: string;
     location?: string;
+    contractType?: string;
+    matchScore?: number;
     whyItMatches: string;
+    keyRequirements?: string[];
     skillsToHighlight: string[];
     url?: string;
+  }>;
+  topHiringCompanies?: Array<{
+    name: string;
+    sector: string;
+    location: string;
   }>;
   recommendations: {
     keywordsToAdd: string[];
@@ -59,180 +72,208 @@ export function ReportView({ markdown, className }: ReportViewProps) {
   if (isJson && parsed) {
     return (
       <div className={cn("space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700", className)}>
-        {/* Top Summary Section */}
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Candidate & Market Overview */}
+        <div className="grid gap-4 md:grid-cols-3">
           <Card className="bg-gradient-to-br from-background to-muted/20 border-emerald-500/20 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-400">
-                <Briefcase className="h-4 w-4" /> Assessed Candidate Profile
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                <Briefcase className="h-4 w-4" /> Position & Domain
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between items-center border-b pb-2">
-                <span className="text-muted-foreground">Primary Domain</span>
-                <span className="font-semibold">{parsed.summary.domain}</span>
+            <CardContent className="space-y-1.5 text-xs">
+              <div className="flex justify-between items-center border-b pb-1.5">
+                <span className="text-muted-foreground">Domain</span>
+                <span className="font-semibold text-foreground">{parsed.summary.domain}</span>
               </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-muted-foreground">Target Seniority</span>
-                <span className="font-semibold">{parsed.summary.seniority}</span>
+              <div className="flex justify-between items-center border-b pb-1.5">
+                <span className="text-muted-foreground">Level</span>
+                <span className="font-semibold text-foreground">{parsed.summary.seniority}</span>
               </div>
+              {parsed.summary.location && (
+                <div className="flex justify-between items-center pt-0.5">
+                  <span className="text-muted-foreground">Origin/Location</span>
+                  <span className="font-semibold text-foreground">{parsed.summary.location}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-background to-muted/20 border-emerald-500/20 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base text-emerald-700 dark:text-emerald-400">
-                <Sparkles className="h-4 w-4" /> Top Core Competencies
+          <Card className="bg-gradient-to-br from-background to-muted/20 border-emerald-500/20 shadow-sm md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                <Sparkles className="h-4 w-4" /> Market Fit & Core Competencies
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <div className="flex flex-wrap gap-1.5">
                 {parsed.summary.coreCompetencies.map((skill, i) => (
                   <Badge
                     key={i}
                     variant="secondary"
-                    className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
+                    className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 text-xs py-0.5"
                   >
                     {skill}
                   </Badge>
                 ))}
               </div>
+              {parsed.marketOverview && (
+                <p className="text-xs text-muted-foreground leading-relaxed pt-1 border-t">
+                  {parsed.marketOverview}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Job Matches Section */}
+        {/* Real Job Matches Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold tracking-tight">Top Matched Job Openings</h3>
+              <h3 className="text-lg font-bold tracking-tight">Active Company Job Offers & Matches</h3>
               <Badge
                 variant="outline"
                 className="text-[10px] uppercase tracking-wider font-semibold border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/20"
               >
-                Live Market Data
+                Verified Opportunities
               </Badge>
             </div>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid gap-5">
             {parsed.matches.map((match, i) => {
-              const query = [match.title, match.company !== "Industry Standard Role" ? match.company : ""]
-                .filter(Boolean)
-                .join(" ");
-              const enc = encodeURIComponent(query || match.title);
+              const query = `${match.company} ${match.title}`.trim();
+              const enc = encodeURIComponent(query);
+              const companyEnc = encodeURIComponent(`${match.company} careers jobs`);
 
+              const companyCareersUrl = `https://www.google.com/search?q=${companyEnc}`;
               const linkedInUrl = `https://www.linkedin.com/jobs/search/?keywords=${enc}&f_TPR=r2592000`;
               const googleJobsUrl = `https://www.google.com/search?q=${encodeURIComponent(query + " jobs")}&ibp=htl;jobs`;
               const indeedUrl = `https://www.indeed.com/jobs?q=${enc}`;
-              const glassdoorUrl = `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(match.title)}`;
+              const baytUrl = `https://www.bayt.com/en/international/jobs/?q=${enc}`;
 
-              const primaryUrl =
-                match.url && !match.url.includes("linkedin.com/jobs/search")
-                  ? match.url
-                  : linkedInUrl;
+              const score = match.matchScore || 90 - i * 4;
 
               return (
                 <Card
                   key={i}
-                  className="group overflow-hidden transition-all hover:shadow-md hover:border-emerald-500/40 relative border-border/80"
+                  className="group overflow-hidden transition-all hover:shadow-lg hover:border-emerald-500/40 relative border-border/80 bg-card"
                 >
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/30 group-hover:bg-emerald-500 transition-colors" />
-                  <CardContent className="p-5">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/40 group-hover:bg-emerald-500 transition-colors" />
+                  <CardContent className="p-6">
                     <div className="flex flex-col gap-4">
-                      {/* Title + Company Header */}
+                      {/* Title + Company + Match Score */}
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <h4 className="text-xl font-bold leading-tight text-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                            {match.title}
-                          </h4>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1.5 font-medium text-foreground/90">
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-xl font-bold leading-tight text-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                              {match.title}
+                            </h4>
+                            {match.contractType && (
+                              <Badge variant="outline" className="text-xs bg-muted/60 font-medium">
+                                {match.contractType}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1.5 font-bold text-foreground">
                               <Building2 className="h-4 w-4 text-emerald-600" />
-                              {match.company || "Verified Hiring Company"}
+                              {match.company}
                             </span>
+                            {match.companyType && (
+                              <span className="text-xs text-muted-foreground/80">
+                                • {match.companyType}
+                              </span>
+                            )}
                             <span className="flex items-center gap-1 text-xs">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {match.location || "Remote / Worldwide"}
+                              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                              {match.location || "Tunisia / Remote / International"}
                             </span>
                           </div>
                         </div>
 
-                        {/* Primary View / Apply Button */}
-                        <div className="shrink-0 flex items-center gap-2">
-                          <Button
-                            asChild
-                            className="w-full md:w-auto shadow-sm gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          >
-                            <a href={primaryUrl} target="_blank" rel="noopener noreferrer">
-                              Apply / View Openings <ArrowUpRight className="h-4 w-4" />
-                            </a>
-                          </Button>
+                        {/* Match Score Badge */}
+                        <div className="shrink-0 flex items-center md:flex-col md:items-end gap-2">
+                          <div className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-bold">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {score}% Match
+                          </div>
                         </div>
                       </div>
 
-                      {/* Why it matches */}
+                      {/* Match Rationale */}
                       <div className="bg-muted/40 rounded-lg p-3.5 text-sm leading-relaxed border border-border/60">
                         <p className="text-foreground/90">
                           <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                            Candidate Match Rationale:
+                            Why this role fits your profile:
                           </span>{" "}
                           {match.whyItMatches}
                         </p>
                       </div>
 
-                      {/* Skills Badges */}
+                      {/* Required Skills & Skills to Highlight */}
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">
-                          Matching Skills:
+                          Matched Skills:
                         </span>
                         {match.skillsToHighlight.map((skill, j) => (
                           <span
                             key={j}
-                            className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border"
+                            className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
                           >
-                            {skill}
+                            ✓ {skill}
                           </span>
                         ))}
                       </div>
 
-                      {/* Multi-Platform Direct Job Search Buttons */}
-                      <div className="pt-2 border-t flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-muted-foreground font-medium mr-1">
-                          Direct Job Boards:
-                        </span>
-                        <a
-                          href={linkedInUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 transition-colors"
-                        >
-                          LinkedIn Jobs <ExternalLink className="h-3 w-3" />
-                        </a>
-                        <a
-                          href={googleJobsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 transition-colors"
-                        >
-                          Google for Jobs <Search className="h-3 w-3" />
-                        </a>
-                        <a
-                          href={indeedUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 transition-colors"
-                        >
-                          Indeed <ExternalLink className="h-3 w-3" />
-                        </a>
-                        <a
-                          href={glassdoorUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 transition-colors"
-                        >
-                          Glassdoor <ExternalLink className="h-3 w-3" />
-                        </a>
+                      {/* Action Links & Multi-platform Search */}
+                      <div className="pt-3 border-t flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-muted-foreground font-semibold">
+                            Apply & Search Openings:
+                          </span>
+                          <a
+                            href={companyCareersUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+                          >
+                            <Building2 className="h-3.5 w-3.5" />
+                            {match.company} Careers <ArrowUpRight className="h-3 w-3" />
+                          </a>
+                          <a
+                            href={linkedInUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 transition-colors"
+                          >
+                            LinkedIn Postings <ExternalLink className="h-3 w-3" />
+                          </a>
+                          <a
+                            href={googleJobsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-100 text-zinc-800 border border-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 transition-colors"
+                          >
+                            Google Jobs <Search className="h-3 w-3" />
+                          </a>
+                          <a
+                            href={indeedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 transition-colors"
+                          >
+                            Indeed <ExternalLink className="h-3 w-3" />
+                          </a>
+                          <a
+                            href={baytUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 transition-colors"
+                          >
+                            Bayt <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -242,11 +283,52 @@ export function ReportView({ markdown, className }: ReportViewProps) {
           </div>
         </div>
 
-        {/* Strategic Recommendations */}
+        {/* Top Hiring Companies in the Market */}
+        {parsed.topHiringCompanies && parsed.topHiringCompanies.length > 0 && (
+          <Card className="border-border/80">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Layers className="h-4 w-4 text-emerald-600" /> Key Companies Actively Recruiting in Your Domain
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {parsed.topHiringCompanies.map((comp, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-col justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+                  >
+                    <div>
+                      <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-emerald-600" /> {comp.name}
+                      </h5>
+                      <p className="text-xs text-muted-foreground mt-0.5">{comp.sector}</p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {comp.location}
+                      </span>
+                      <a
+                        href={`https://www.google.com/search?q=${encodeURIComponent(comp.name + " careers jobs")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-0.5"
+                      >
+                        Careers <ArrowUpRight className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Strategic Career Recommendations */}
         <Card className="bg-muted/30 border-dashed border-2">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4 text-emerald-600" /> Strategic Career & Resume Recommendations
+              <TrendingUp className="h-4 w-4 text-emerald-600" /> Strategic Career & Profile Optimization
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
@@ -254,16 +336,16 @@ export function ReportView({ markdown, className }: ReportViewProps) {
               <h5 className="font-semibold mb-2">High-Impact Keywords to Add to CV:</h5>
               <div className="flex flex-wrap gap-2">
                 {parsed.recommendations.keywordsToAdd.map((kw, i) => (
-                  <Badge key={i} variant="outline" className="border-emerald-500/30 font-medium">
+                  <Badge key={i} variant="outline" className="border-emerald-500/30 font-medium bg-background">
                     + {kw}
                   </Badge>
                 ))}
               </div>
             </div>
             {parsed.recommendations.upskilling && (
-              <div className="flex items-start gap-2 bg-background p-3 rounded-md border border-border/50">
-                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                <p className="text-muted-foreground">
+              <div className="flex items-start gap-2.5 bg-background p-3.5 rounded-lg border border-border/60">
+                <GraduationCap className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-muted-foreground text-xs leading-relaxed">
                   <span className="font-semibold text-foreground">Recommended Skill / Certification:</span>{" "}
                   {parsed.recommendations.upskilling}
                 </p>

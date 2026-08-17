@@ -100,6 +100,12 @@ function coerceProfile(parsed: unknown): CandidateProfile {
         ? obj.seniorityLevel.trim()
         : "Mid",
     yearsOfExperience: Number.isFinite(years) ? years : null,
+    location:
+      typeof obj.location === "string" && obj.location.trim()
+        ? obj.location.trim()
+        : null,
+    targetLocations: strArr(obj.targetLocations),
+    targetCompanies: strArr(obj.targetCompanies),
     hardSkills,
     softSkills,
     coreCompetencies: core,
@@ -113,21 +119,26 @@ function coerceProfile(parsed: unknown): CandidateProfile {
 }
 
 /**
- * Build targeted search queries (Google + LinkedIn style) from the profile.
- * Mirrors the operator's example: site:linkedin.com "Senior Product Manager" AND "SaaS".
+ * Build targeted search queries across specific companies, regions, and job portals.
  */
 function buildSearchQueries(profile: CandidateProfile): string[] {
   const titles = profile.titleVariations.slice(0, 3);
+  const primaryTitle = titles[0] || "Engineer";
   const domain = profile.primaryDomain;
-  const kw = profile.industryKeywords.slice(0, 2);
-  const primaryTitle = titles[0] || "Software Engineer";
   const skills = profile.hardSkills.slice(0, 3).join(" ");
+  const loc = profile.location ? ` ${profile.location}` : "";
+  const targetCompanies = profile.targetCompanies?.slice(0, 3) || [];
 
   const queries: string[] = [
-    `${primaryTitle} jobs LinkedIn Indeed`,
-    `${primaryTitle} ${skills} job openings`,
-    `${titles[1] || primaryTitle} ${domain} careers`,
+    `${primaryTitle} hiring job vacancies${loc}`,
+    `${primaryTitle} ${skills} careers job openings`,
   ];
+
+  if (targetCompanies.length > 0) {
+    queries.push(`${targetCompanies.join(" OR ")} ${primaryTitle} careers`);
+  } else {
+    queries.push(`${domain} top companies hiring ${primaryTitle}`);
+  }
 
   return [...new Set(queries.filter(Boolean))];
 }

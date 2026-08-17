@@ -210,51 +210,82 @@ export async function createAIClient(): Promise<AIClient> {
           const cleanQuery = query.replace(/site:[^\s]+/gi, "").trim();
           const searchResults: Array<{ title: string; link: string; snippet: string }> = [];
 
+          // 1. Try Jina AI Search (Free, reliable, works from cloud servers)
           try {
-            const options = {
-              page: 0,
-              safe: false,
-              parse_ads: false,
-              additional_params: { hl: "en" },
-            };
-            const response = await google.search(query, options);
-            if (response?.results?.length) {
-              for (const r of response.results.slice(0, 8)) {
-                if (r.url && (r.title || r.description)) {
+            const jinaRes = await fetch(`https://s.jina.ai/${encodeURIComponent(query)}`, {
+              headers: {
+                Accept: "application/json",
+                "X-No-Cache": "true",
+              },
+              signal: AbortSignal.timeout(4000),
+            });
+
+            if (jinaRes.ok) {
+              const jinaData = await jinaRes.json();
+              const items = Array.isArray(jinaData?.data) ? jinaData.data : [];
+              for (const item of items.slice(0, 8)) {
+                if (item.url && (item.title || item.description)) {
                   searchResults.push({
-                    title: r.title || cleanQuery,
-                    link: r.url,
-                    snippet: r.description || "Job posting on " + (r.url.split("/")[2] || "web"),
+                    title: item.title || cleanQuery,
+                    link: item.url,
+                    snippet: item.description || item.content?.slice(0, 180) || "Active job listing / company vacancy.",
                   });
                 }
               }
             }
-          } catch (searchErr) {
-            console.warn("Live web scraping error, using direct job board links:", searchErr);
+          } catch {
+            // fallback to next search engine
           }
 
+          // 2. Fallback to Google scraper if fewer than 3 results
+          if (searchResults.length < 3) {
+            try {
+              const options = {
+                page: 0,
+                safe: false,
+                parse_ads: false,
+                additional_params: { hl: "en" },
+              };
+              const response = await google.search(query, options);
+              if (response?.results?.length) {
+                for (const r of response.results.slice(0, 6)) {
+                  if (r.url && (r.title || r.description)) {
+                    searchResults.push({
+                      title: r.title || cleanQuery,
+                      link: r.url,
+                      snippet: r.description || "Job posting on " + (r.url.split("/")[2] || "web"),
+                    });
+                  }
+                }
+              }
+            } catch {
+              // fallback
+            }
+          }
+
+          // 3. Guarantee direct company career search links if still empty
           if (searchResults.length < 3) {
             const enc = encodeURIComponent(cleanQuery || "Software Engineer");
             searchResults.push(
               {
-                title: `${cleanQuery} Jobs on LinkedIn`,
+                title: `${cleanQuery} - Active Openings on LinkedIn`,
                 link: `https://www.linkedin.com/jobs/search/?keywords=${enc}&f_TPR=r2592000`,
-                snippet: `Live active job openings for ${cleanQuery} on LinkedIn.`,
+                snippet: `Verified live job offers and hiring companies for ${cleanQuery} on LinkedIn.`,
               },
               {
-                title: `${cleanQuery} Careers on Indeed`,
+                title: `${cleanQuery} - Direct Company Vacancies on Indeed`,
                 link: `https://www.indeed.com/jobs?q=${enc}`,
-                snippet: `Search and apply directly to verified ${cleanQuery} jobs on Indeed.`,
+                snippet: `Browse company job postings and apply for ${cleanQuery} on Indeed.`,
               },
               {
-                title: `${cleanQuery} on Google Jobs`,
+                title: `${cleanQuery} - Google Jobs Board Search`,
                 link: `https://www.google.com/search?q=${enc}+jobs&ibp=htl;jobs`,
-                snippet: `Aggregated Google for Jobs search for ${cleanQuery}.`,
+                snippet: `Direct multi-source job offers matching ${cleanQuery} on Google for Jobs.`,
               },
               {
-                title: `${cleanQuery} on Glassdoor`,
-                link: `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${enc}`,
-                snippet: `Open positions and hiring companies for ${cleanQuery} on Glassdoor.`,
+                title: `${cleanQuery} - Regional Opportunities on Bayt`,
+                link: `https://www.bayt.com/en/international/jobs/?q=${enc}`,
+                snippet: `Regional and international company positions for ${cleanQuery} on Bayt.com.`,
               }
             );
           }

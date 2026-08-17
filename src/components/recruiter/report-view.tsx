@@ -56,20 +56,42 @@ interface ParsedReport {
   };
 }
 
-export function ReportView({ markdown, className }: ReportViewProps) {
-  let parsed: ParsedReport | null = null;
-  let isJson = false;
+function extractReportJson(raw: string): ParsedReport | null {
+  if (!raw) return null;
+  const text = raw.trim();
 
+  // 1. Direct parse
   try {
-    parsed = JSON.parse(markdown) as ParsedReport;
-    if (parsed && parsed.matches && Array.isArray(parsed.matches)) {
-      isJson = true;
-    }
-  } catch {
-    isJson = false;
+    const res = JSON.parse(text) as ParsedReport;
+    if (res && res.matches && Array.isArray(res.matches)) return res;
+  } catch {}
+
+  // 2. Strip code fences
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) {
+    try {
+      const res = JSON.parse(fenceMatch[1].trim()) as ParsedReport;
+      if (res && res.matches && Array.isArray(res.matches)) return res;
+    } catch {}
   }
 
-  if (isJson && parsed) {
+  // 3. Find outermost { and }
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last > first) {
+    try {
+      const res = JSON.parse(text.slice(first, last + 1)) as ParsedReport;
+      if (res && res.matches && Array.isArray(res.matches)) return res;
+    } catch {}
+  }
+
+  return null;
+}
+
+export function ReportView({ markdown, className }: ReportViewProps) {
+  const parsed = extractReportJson(markdown);
+
+  if (parsed) {
     return (
       <div className={cn("space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500", className)}>
         {/* Candidate & Market Overview Card */}

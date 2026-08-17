@@ -356,9 +356,24 @@ export async function* runRecruiterAgent(
       throw new Error("LLM returned an empty report.");
     }
 
-    // Strip a leading markdown fence if the model wrapped the whole report.
+    // Strip reasoning model <think>...</think> blocks
+    report = report.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
+    // Strip leading markdown fence if the model wrapped the whole report.
     if (report.startsWith("```")) {
       report = report.replace(/^```(?:json|markdown)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    }
+
+    // If the model output prose/brainstorming before JSON, extract just the JSON part
+    const jsonStart = report.indexOf("{");
+    if (jsonStart > 0) {
+      // There's text before the first {, strip it
+      report = report.slice(jsonStart);
+    }
+    // Ensure it ends at the last }
+    const jsonEnd = report.lastIndexOf("}");
+    if (jsonEnd !== -1 && jsonEnd < report.length - 1) {
+      report = report.slice(0, jsonEnd + 1);
     }
 
     yield { type: "report", report };

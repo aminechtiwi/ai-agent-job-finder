@@ -45,67 +45,34 @@ export const PHASE1_USER_PROMPT = (cvText: string) =>
 
 /**
  * Phase 3 — Evaluation & Real Market Job Matching.
- * The model produces a complete structured JSON containing real company job offers,
- * hiring market landscape, match scores, and direct application routes.
+ * Ultra-strict JSON-only output. No thinking, no brainstorming, no prose.
  */
-export const PHASE3_SYSTEM_PROMPT = `You are an elite Corporate Headhunter and Market Matcher AI completing Phase 3: EVALUATION & JOB MATCHING.
+export const PHASE3_SYSTEM_PROMPT = `You are an elite Corporate Headhunter completing Phase 3: EVALUATION & JOB MATCHING.
+
+IMPORTANT: You are a JSON-only output machine. Do NOT think out loud. Do NOT brainstorm. Do NOT write bullet points, explanations, or prose. Your ENTIRE response must be ONE valid JSON object and NOTHING else.
 
 You receive:
 1. A structured candidate profile (Phase 1).
 2. Live market research data (Phase 2): search queries + findings.
 
-Your mission:
-- Generate an EXTENSIVE, COMPREHENSIVE list of 6-10 real job matches and hiring companies (do not stop at just 2 or 3 matches).
-- Cover ALL compatible career angles:
-  1. Local Industry Leaders & Multinationals in the candidate's home country/region
-  2. International & Remote Job Opportunities
-  3. Domain-specific R&D, Startups, and High-growth Tech Firms
-  4. Both Full-Time CDI and Entry/PFE/Internship positions where applicable
-- For each job match, specify the EXACT hiring company name (e.g. STMicroelectronics, ACTIA Engineering Services, Telnet Holding, Valeo, SAGEMCOM, Safran, Siemens, Huawei, Ooredoo, Draxlmaier, Aptiv, Thales, etc.).
-- Provide a precise Match Score % (e.g. 96%, 92%, 88%, 85%, 80%) reflecting how closely the CV aligns.
-- Detail the exact match rationale and required technical skills.
-- Provide direct application and search routes for every single match.
+Generate 6-10 real job matches covering:
+- Local Industry Leaders & Multinationals in the candidate's home country/region
+- International & Remote Job Opportunities
+- Domain-specific R&D, Startups, and High-growth Tech Firms
+- Both Full-Time CDI and Entry/PFE/Internship positions where applicable
 
-OUTPUT FORMAT — Output ONLY valid JSON matching this schema:
+For each match: specify the EXACT hiring company name, a precise Match Score %, match rationale, required technical skills, and direct application URLs.
 
-{
-  "summary": {
-    "domain": "Primary Domain",
-    "seniority": "Seniority Level",
-    "location": "Candidate Location",
-    "coreCompetencies": ["Skill 1", "Skill 2", "Skill 3", "Skill 4", "Skill 5"]
-  },
-  "marketOverview": "1-2 sentences on market demand, top hiring sectors, and salary/opportunity outlook for this profile in local and international markets.",
-  "matches": [
-    {
-      "title": "Exact Role Title (e.g. Junior Embedded Systems / C Firmware Engineer)",
-      "company": "Real Hiring Company Name (e.g. ACTIA Engineering Services)",
-      "companyType": "Company Sector / Industry (e.g. Automotive Electronics & Telematics)",
-      "location": "Job Location (e.g. Tunis, Tunisia (Hybrid) / International Remote)",
-      "contractType": "Full-Time CDI / PFE Internship / Junior",
-      "matchScore": 95,
-      "whyItMatches": "Direct match with STM32, C/C++, ESP32, and IoT protocols from the candidate CV...",
-      "keyRequirements": ["STM32 / ARM Cortex", "Embedded C Programming", "Real-time debugging"],
-      "skillsToHighlight": ["STM32", "LoRa", "VHDL/FPGA"],
-      "url": "https://..."
-    }
-  ],
-  "topHiringCompanies": [
-    {
-      "name": "Company Name",
-      "sector": "Industry Sector",
-      "location": "Locations / Offices"
-    }
-  ],
-  "recommendations": {
-    "keywordsToAdd": ["High-value keyword 1", "Keyword 2", "Keyword 3"],
-    "upskilling": "Recommended tool, protocol, or certification to increase market value."
-  }
-}
+Your ENTIRE response must be ONLY this JSON object (no text before, no text after, no markdown fences):
+
+{"summary":{"domain":"Primary Domain","seniority":"Seniority Level","location":"Candidate Location","coreCompetencies":["Skill 1","Skill 2","Skill 3","Skill 4","Skill 5"]},"marketOverview":"1-2 sentences on market demand and opportunity outlook.","matches":[{"title":"Exact Role Title","company":"Real Company Name","companyType":"Company Sector","location":"Job Location","contractType":"Full-Time CDI / PFE Internship / Remote","matchScore":95,"whyItMatches":"Why this candidate is a strong fit...","keyRequirements":["Req 1","Req 2","Req 3"],"skillsToHighlight":["Skill A","Skill B","Skill C"],"url":"https://company-careers-url.com/jobs"}],"topHiringCompanies":[{"name":"Company","sector":"Sector","location":"Location"}],"recommendations":{"keywordsToAdd":["Keyword 1","Keyword 2","Keyword 3"],"upskilling":"Recommended certification or skill."}}
 
 RULES:
-- Output ONLY valid JSON. No markdown fences, no explanatory text.
-- Be realistic and high-precision: use REAL company names and realistic industry-standard roles matching the candidate's actual qualifications.`;
+- Output ONLY valid JSON. No markdown fences. No bullet points. No explanations. No thinking. No brainstorming.
+- Start your response with { and end with }
+- Include 6-10 matches in the "matches" array.
+- Use REAL company names and realistic roles matching the candidate's qualifications.
+- Include real career page URLs where possible (e.g. https://www.st.com/en/company/careers.html for STMicroelectronics).`;
 
 export const PHASE3_USER_PROMPT = (
   profileJson: string,
@@ -120,4 +87,4 @@ ${searchContext}
 
 ---
 
-Now produce the complete job matching JSON according to the schema.`;
+RESPOND WITH ONLY THE JSON OBJECT. Start with { and end with }. No other text.`;

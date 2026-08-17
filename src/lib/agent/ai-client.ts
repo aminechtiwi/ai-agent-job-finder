@@ -67,16 +67,21 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
     console.warn("Could not query Groq models catalog:", err);
   }
 
-  // Combine discovered models with known common models
+  // Combine discovered models with known common models.
+  // IMPORTANT: Reasoning models (deepseek-r1*) output chain-of-thought text
+  // instead of clean JSON, so we deprioritize them heavily.
+  const reasoningModels = new Set(["deepseek-r1-distill-llama-70b", "deepseek-r1-distill-qwen-32b"]);
+
   const candidateModels = Array.from(
     new Set([
-      ...liveModels,
+      // Preferred non-reasoning models first
       "llama-3.3-70b-versatile",
       "llama-3.1-8b-instant",
       "llama3-70b-8192",
       "llama3-8b-8192",
-      "deepseek-r1-distill-llama-70b",
       "qwen-2.5-32b",
+      // Add any live models that are NOT reasoning models
+      ...liveModels.filter((m) => !reasoningModels.has(m)),
     ])
   );
 
@@ -94,6 +99,7 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
           model,
           messages,
           temperature: 0.2,
+          response_format: { type: "json_object" },
         }),
       });
 

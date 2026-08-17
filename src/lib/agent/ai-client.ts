@@ -43,8 +43,9 @@ function cleanKey(val?: string | null): string {
  * Tries llama-3.3-70b-versatile -> llama-3.1-8b-instant -> mixtral-8x7b-32768
  */
 async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<string> {
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"];
-  let lastErr = "";
+  // Only active, supported Groq models
+  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "deepseek-r1-distill-llama-70b"];
+  const errors: string[] = [];
 
   for (const model of models) {
     try {
@@ -65,13 +66,14 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
       if (res.ok && data?.choices?.[0]?.message?.content) {
         return data.choices[0].message.content;
       }
-      lastErr = data?.error?.message || `HTTP ${res.status}`;
+      const err = data?.error?.message || `HTTP ${res.status}`;
+      errors.push(`${model}: ${err}`);
     } catch (e: any) {
-      lastErr = e?.message || "Network error";
+      errors.push(`${model}: ${e?.message || "Network error"}`);
     }
   }
 
-  throw new Error(`Groq failed: ${lastErr}`);
+  throw new Error(`Groq failed: ${errors[0] || errors.join(" | ")}`);
 }
 
 /**

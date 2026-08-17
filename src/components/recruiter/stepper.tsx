@@ -23,7 +23,7 @@ const PHASE_META = [
   {
     icon: Target,
     label: "Evaluation & Mapping",
-    sub: "Top 3 matches + report",
+    sub: "Full market matches + report",
   },
 ] as const;
 

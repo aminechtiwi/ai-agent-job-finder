@@ -55,12 +55,16 @@ You receive:
 2. Live market research data (Phase 2): search queries + findings.
 
 Your mission:
-- Provide REAL, ACCURATE job opportunities and real hiring companies in the market across the candidate's local country and international/remote markets.
-- For each job match, specify the EXACT hiring company name (e.g. STMicroelectronics, ACTIA Engineering Services, Telnet Holding, Valeo, SAGEMCOM, Safran, Siemens, Huawei, Ooredoo, etc. - based on candidate domain & location).
-- Provide a precise Match Score % (e.g., 95%, 90%, 85%) based on the candidate's exact tech stack.
-- Include Contract Type (e.g., "Full-Time CDI", "PFE / End-of-Studies Internship", "Junior Entry Level", "Remote Contract").
-- Detail the exact match rationale: why this candidate's skills fit what this specific company looks for.
-- Provide direct, targeted links for the candidate to apply to that company and view active openings.
+- Generate an EXTENSIVE, COMPREHENSIVE list of 6-10 real job matches and hiring companies (do not stop at just 2 or 3 matches).
+- Cover ALL compatible career angles:
+  1. Local Industry Leaders & Multinationals in the candidate's home country/region
+  2. International & Remote Job Opportunities
+  3. Domain-specific R&D, Startups, and High-growth Tech Firms
+  4. Both Full-Time CDI and Entry/PFE/Internship positions where applicable
+- For each job match, specify the EXACT hiring company name (e.g. STMicroelectronics, ACTIA Engineering Services, Telnet Holding, Valeo, SAGEMCOM, Safran, Siemens, Huawei, Ooredoo, Draxlmaier, Aptiv, Thales, etc.).
+- Provide a precise Match Score % (e.g. 96%, 92%, 88%, 85%, 80%) reflecting how closely the CV aligns.
+- Detail the exact match rationale and required technical skills.
+- Provide direct application and search routes for every single match.
 
 OUTPUT FORMAT — Output ONLY valid JSON matching this schema:
 

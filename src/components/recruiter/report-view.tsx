@@ -147,9 +147,9 @@ export function ReportView({ markdown, className }: ReportViewProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between pb-1">
             <h3 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
-              <span>Top Matched Job Opportunities</span>
+              <span>All Compatible Market Matches &amp; Job Opportunities</span>
               <Badge variant="secondary" className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold">
-                {parsed.matches.length} Matches Found
+                {parsed.matches.length} Opportunities
               </Badge>
             </h3>
           </div>

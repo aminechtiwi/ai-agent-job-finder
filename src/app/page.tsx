@@ -50,8 +50,8 @@ export default function Home() {
               <p className="mt-1 text-sm text-muted-foreground">
                 The agent runs a strict 3-phase workflow — it extracts skills &amp;
                 seniority, queries live Google &amp; LinkedIn job data, then maps
-                the candidate to the top 3 compatible roles. No hallucinated
-                links, strict seniority alignment.
+                the candidate to all compatible market opportunities across local and
+                international companies.
               </p>
             </div>
             <ol className="flex shrink-0 flex-wrap gap-2 text-xs">

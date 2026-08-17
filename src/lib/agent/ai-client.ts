@@ -58,14 +58,10 @@ async function getActiveGroqModel(apiKey: string): Promise<string> {
         ? data.data.map((m: any) => String(m.id))
         : [];
 
-      // Ranked preference of active Groq models
+      // Ranked preference of active, stable production Groq models only
       const preferred = [
         "llama-3.1-8b-instant",
         "llama-3.3-70b-versatile",
-        "deepseek-r1-distill-llama-70b",
-        "qwen-2.5-32b",
-        "llama-3.2-3b-preview",
-        "llama-3.2-1b-preview",
       ];
 
       for (const pref of preferred) {
@@ -74,30 +70,24 @@ async function getActiveGroqModel(apiKey: string): Promise<string> {
           return pref;
         }
       }
-
-      if (availableIds.length > 0) {
-        _cachedGroqModel = availableIds[0];
-        return availableIds[0];
-      }
     }
   } catch {
     // fallback
   }
 
-  // Fallback standard default
   return "llama-3.1-8b-instant";
 }
 
 /**
- * Direct HTTP caller for Groq with dynamic model detection
+ * Direct HTTP caller for Groq with production models only
  */
 async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<string> {
   const modelToUse = await getActiveGroqModel(apiKey);
-  const modelsToTry = [modelToUse, "llama-3.1-8b-instant", "deepseek-r1-distill-llama-70b", "llama-3.2-3b-preview"].filter(
+  const modelsToTry = [modelToUse, "llama-3.1-8b-instant", "llama-3.3-70b-versatile"].filter(
     (v, i, a) => a.indexOf(v) === i
   );
 
-  let lastErr = "";
+  const errors: string[] = [];
 
   for (const model of modelsToTry) {
     try {
@@ -119,13 +109,14 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
         _cachedGroqModel = model;
         return data.choices[0].message.content;
       }
-      lastErr = data?.error?.message || `HTTP ${res.status}`;
+      const err = data?.error?.message || `HTTP ${res.status}`;
+      errors.push(`${model}: ${err}`);
     } catch (e: any) {
-      lastErr = e?.message || "Network error";
+      errors.push(`${model}: ${e?.message || "Network error"}`);
     }
   }
 
-  throw new Error(`Groq failed: ${lastErr}`);
+  throw new Error(`Groq failed: ${errors[0] || "Rate limit or connection issue. Please wait 10 seconds and try again."}`);
 }
 
 /**

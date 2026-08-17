@@ -32,7 +32,6 @@ export interface AIClient {
 }
 
 let _client: AIClient | null = null;
-let _cachedGroqModel: string | null = null;
 
 function cleanKey(val?: string | null): string {
   if (!val) return "";
@@ -40,56 +39,14 @@ function cleanKey(val?: string | null): string {
 }
 
 /**
- * Dynamically queries Groq's models endpoint to discover the exact
- * active models available for this user's API key.
- */
-async function getActiveGroqModel(apiKey: string): Promise<string> {
-  if (_cachedGroqModel) return _cachedGroqModel;
-
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(3500),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const availableIds: string[] = Array.isArray(data?.data)
-        ? data.data.map((m: any) => String(m.id))
-        : [];
-
-      // Ranked preference of active, stable production Groq models only
-      const preferred = [
-        "llama-3.1-8b-instant",
-        "llama-3.3-70b-versatile",
-      ];
-
-      for (const pref of preferred) {
-        if (availableIds.includes(pref)) {
-          _cachedGroqModel = pref;
-          return pref;
-        }
-      }
-    }
-  } catch {
-    // fallback
-  }
-
-  return "llama-3.1-8b-instant";
-}
-
-/**
- * Direct HTTP caller for Groq with production models only
+ * Direct HTTP caller for Groq.
+ * Uses llama-3.3-70b-versatile as primary production model with llama-3.1-8b-instant fallback.
  */
 async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<string> {
-  const modelToUse = await getActiveGroqModel(apiKey);
-  const modelsToTry = [modelToUse, "llama-3.1-8b-instant", "llama-3.3-70b-versatile"].filter(
-    (v, i, a) => a.indexOf(v) === i
-  );
-
+  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
   const errors: string[] = [];
 
-  for (const model of modelsToTry) {
+  for (const model of models) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -106,7 +63,6 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
 
       const data = await res.json();
       if (res.ok && data?.choices?.[0]?.message?.content) {
-        _cachedGroqModel = model;
         return data.choices[0].message.content;
       }
       const err = data?.error?.message || `HTTP ${res.status}`;
@@ -116,7 +72,7 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
     }
   }
 
-  throw new Error(`Groq failed: ${errors[0] || "Rate limit or connection issue. Please wait 10 seconds and try again."}`);
+  throw new Error(`Groq error: ${errors.join(" | ")}`);
 }
 
 /**

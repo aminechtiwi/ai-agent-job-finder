@@ -32,6 +32,7 @@ export interface AIClient {
 }
 
 let _client: AIClient | null = null;
+let _cachedGroqModel: string | null = null;
 
 function cleanKey(val?: string | null): string {
   if (!val) return "";
@@ -39,15 +40,66 @@ function cleanKey(val?: string | null): string {
 }
 
 /**
- * Direct HTTP caller for Groq with automatic model failover.
- * Tries llama-3.3-70b-versatile -> llama-3.1-8b-instant -> mixtral-8x7b-32768
+ * Dynamically queries Groq's models endpoint to discover the exact
+ * active models available for this user's API key.
+ */
+async function getActiveGroqModel(apiKey: string): Promise<string> {
+  if (_cachedGroqModel) return _cachedGroqModel;
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(3500),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const availableIds: string[] = Array.isArray(data?.data)
+        ? data.data.map((m: any) => String(m.id))
+        : [];
+
+      // Ranked preference of active Groq models
+      const preferred = [
+        "llama-3.1-8b-instant",
+        "llama-3.3-70b-versatile",
+        "deepseek-r1-distill-llama-70b",
+        "qwen-2.5-32b",
+        "llama-3.2-3b-preview",
+        "llama-3.2-1b-preview",
+      ];
+
+      for (const pref of preferred) {
+        if (availableIds.includes(pref)) {
+          _cachedGroqModel = pref;
+          return pref;
+        }
+      }
+
+      if (availableIds.length > 0) {
+        _cachedGroqModel = availableIds[0];
+        return availableIds[0];
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  // Fallback standard default
+  return "llama-3.1-8b-instant";
+}
+
+/**
+ * Direct HTTP caller for Groq with dynamic model detection
  */
 async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<string> {
-  // Only active, supported Groq models
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "deepseek-r1-distill-llama-70b"];
-  const errors: string[] = [];
+  const modelToUse = await getActiveGroqModel(apiKey);
+  const modelsToTry = [modelToUse, "llama-3.1-8b-instant", "deepseek-r1-distill-llama-70b", "llama-3.2-3b-preview"].filter(
+    (v, i, a) => a.indexOf(v) === i
+  );
 
-  for (const model of models) {
+  let lastErr = "";
+
+  for (const model of modelsToTry) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -64,16 +116,16 @@ async function callGroqDirect(apiKey: string, messages: ChatMessage[]): Promise<
 
       const data = await res.json();
       if (res.ok && data?.choices?.[0]?.message?.content) {
+        _cachedGroqModel = model;
         return data.choices[0].message.content;
       }
-      const err = data?.error?.message || `HTTP ${res.status}`;
-      errors.push(`${model}: ${err}`);
+      lastErr = data?.error?.message || `HTTP ${res.status}`;
     } catch (e: any) {
-      errors.push(`${model}: ${e?.message || "Network error"}`);
+      lastErr = e?.message || "Network error";
     }
   }
 
-  throw new Error(`Groq failed: ${errors[0] || errors.join(" | ")}`);
+  throw new Error(`Groq failed: ${lastErr}`);
 }
 
 /**
@@ -236,7 +288,7 @@ export async function createAIClient(): Promise<AIClient> {
               }
             }
           } catch {
-            // fallback to next search engine
+            // fallback
           }
 
           // 2. Fallback to Google scraper if fewer than 3 results
